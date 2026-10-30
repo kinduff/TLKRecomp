@@ -2481,3 +2481,38 @@ option off: compare_modes MATCH (57ccb8d5, c897f389, dd861e16, 946033bd), 71/71 
 
 Not fixed: in level 9 the game moves the camera limits mid-level and the view jumps with them (All Bugs f57144 0 ->
 71, f58932 142 -> 71); it was so before part 4. Not checked: MinGW build.
+
+## Task GLIBC: Linux release built on Ubuntu 22.04
+
+The AppImage catalog (appimage.github.io) rejected the v0.3.1 AppImage: on its test system, the oldest Ubuntu LTS in
+standard support (22.04, glibc 2.35), `tlk_sdl` would not start: `version 'GLIBC_2.38' not found`. teresa (Arch,
+glibc 2.44) links C23 `__isoc23_strtol`/`sscanf`, `strlcpy` (2.38) and `sqrtf`/`atan2f`/`acosf` (2.43). It also
+flagged the name: an AppImage should not say "linux".
+
+- `scripts/linux_container.sh` runs a command in an Ubuntu 22.04 image (`packaging/linux/Containerfile`, podman or
+  docker, repo mounted at its own path, own ccache dir). CMake comes from PyPI (3.31.6): 22.04's 3.22 can't run the
+  SDL3 fetch (`DOWNLOAD_EXTRACT_TIMESTAMP`). The image's -dev packages compile in the same SDL3 backends as an Arch
+  build (diff of `SDL_build_config.h`: only libdecor 0.1 / xkbcommon 1.4 headers, and GLES1 added).
+- `scripts/release.sh` builds Linux in `build-linux/` through it, packs the tarball and AppImage there, and stops if
+  `tlk_sdl` needs a glibc newer than 2.35 or libstdc++ newer than GLIBCXX 3.4.30.
+- `TLKRecomp-linux-x86_64.AppImage` is now `TLKRecomp-x86_64.AppImage`. The tarball keeps its name.
+- `tlk_sdl` no longer quits when SDL's audio fails to start (no sound library: `SDL_Init` failed on `libjack.so.0` in
+  a bare 22.04): it says so and runs silent, as it already did when the device would not open.
+
+`tlk_sdl` also needs the system's `libGL.so.1` (recomp-ui's `launcher_gl.c` calls GL directly). Every desktop has it;
+a bare container does not.
+
+Evidence (2026-10-30, teresa):
+
+```
+build-linux/tlk_sdl, tlk_headless        newest GLIBC_2.34, GLIBCXX_3.4.29 (was GLIBC_2.43)
+scripts/release.sh (8 min, warm ccache)  linux 600/3000 MATCH 57ccb8d5 c897f389, linux-6987M 6000 MATCH a07184e1,
+                                         windows same, AppImage and exe f600 57ccb8d5
+ubuntu:22.04 container, AppImage         --frames 600 f600 57ccb8d5; with libgl1 + Xvfb and no ROM: window
+                                         "The Lion King" with the Choose ROM dialog, still up after 10 s
+tlk_sdl audio on / SDL_AUDIO_DRIVER=nonexistent   both run, same frame at 60; remap self-test PASS
+```
+
+Not run: the full gate list (only release.sh's subset and the remap self-test; the change outside packaging is the
+audio start in `sdl_main.c`), a real window on a desktop, and release.sh under the Gitea runner (podman as the runner's
+user was only run from a shell).
