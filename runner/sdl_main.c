@@ -2056,10 +2056,14 @@ int main(int argc, char **argv) {
     if (s_volume < 0) s_volume = 0;
     if (s_volume > 100) s_volume = 100;
 
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | (s_audio ? SDL_INIT_AUDIO : 0))) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return 3;
     }
+    /* No sound library or device (a sandbox, a bare system) is not fatal: the
+     * game runs silent. */
+    int audio_ok = !s_audio || SDL_InitSubSystem(SDL_INIT_AUDIO);
+    if (!audio_ok) fprintf(stderr, "audio: %s (continuing without sound)\n", SDL_GetError());
 
     size_t rom_size = 0;
     char err[256], found[2048];
@@ -2098,7 +2102,7 @@ int main(int argc, char **argv) {
     /* The output rate is fixed for the session so turning audio on/off in the
      * menu does not change emulation (RtlRenderAudio runs either way below). */
     RtlSetAudioOutputRate(s_audio_rate);
-    if (s_audio) {
+    if (s_audio && audio_ok) {
         SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, s_audio_rate };
         astream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
         if (!astream) fprintf(stderr, "audio: %s (continuing without sound)\n", SDL_GetError());
