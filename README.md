@@ -278,7 +278,9 @@ MinGW runtime are linked statically, so the `.exe` files need only system DLLs:
 
 `scripts/package.sh` builds `dist/TLKRecomp-linux-x86_64.tar.gz` (binary, README and license notes; no ROM and no game
 data) and `scripts/package_appimage.sh` the same program as `TLKRecomp-linux-x86_64.AppImage` (settings, saves and a
-ROM go next to the .AppImage file). `scripts/package_win.sh` builds `dist/TLKRecomp-windows-x86_64.zip` from
+ROM go next to the .AppImage file). Run them through `scripts/linux_container.sh` (podman or docker) to build on
+Ubuntu 22.04 as releases do: a binary needs a glibc at least as new as the one it was built against, so a build from
+a current distribution won't start on older ones. `scripts/package_win.sh` builds `dist/TLKRecomp-windows-x86_64.zip` from
 `build-win/`, and the same `tlk_sdl.exe` alone as `TLKRecomp-windows-x86_64.exe`: the shader presets and menu font are
 compiled into `tlk_sdl` and, when no `assets/` folder sits next to it, unpacked to the per-user folder
 (`%APPDATA%\TLKRecomp`). `cmake --install build --prefix DIR` installs `bin/tlk_sdl` and the same notes.

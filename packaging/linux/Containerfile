@@ -1,0 +1,22 @@
+# Build environment for the Linux release (scripts/linux_container.sh).
+#
+# A binary only runs on systems whose glibc is at least as new as the one it
+# was linked against. Ubuntu 22.04 (glibc 2.35) is the oldest Ubuntu LTS in
+# standard support, which is what the AppImage catalog tests on; built here,
+# tlk_sdl runs there and on everything newer. SDL3 is built from source and
+# dlopens its backends, so the -dev packages below only decide which backends
+# get compiled in: keep them in line with what a host build enables.
+FROM docker.io/library/ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential binutils ca-certificates ccache curl file ninja-build pkg-config python3 python3-pip \
+        libasound2-dev libjack-jackd2-dev libpipewire-0.3-dev libpulse-dev libsndio-dev \
+        libx11-dev libxcursor-dev libxext-dev libxfixes-dev libxi-dev libxinerama-dev libxkbcommon-dev \
+        libxrandr-dev libxss-dev libxtst-dev \
+        libdecor-0-dev libwayland-dev wayland-protocols \
+        libdrm-dev libegl-dev libgbm-dev libgl-dev libgles-dev libvulkan-dev \
+        libdbus-1-dev libibus-1.0-dev libudev-dev libusb-1.0-0-dev \
+        libfribidi-dev libthai-dev \
+    && rm -rf /var/lib/apt/lists/*
+# 22.04's own CMake (3.22) is too old for the SDL3 fetch (DOWNLOAD_EXTRACT_TIMESTAMP needs 3.24).
+RUN pip3 install --no-cache-dir cmake==3.31.6

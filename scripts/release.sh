@@ -1,13 +1,14 @@
 #!/usr/bin/env sh
 # Build, check and pack the release packages into dist/:
-# TLKRecomp-linux-x86_64.{tar.gz,AppImage}, TLKRecomp-windows-x86_64.{zip,exe}
-# and SHA256SUMS.
+# TLKRecomp-linux-x86_64.tar.gz, TLKRecomp-linux-x86_64.AppImage,
+# TLKRecomp-windows-x86_64.{zip,exe} and SHA256SUMS.
 #
 # usage: scripts/release.sh -r ROM
 # Generates the C from ROM, builds tlk_headless and tlk_sdl for Linux
-# (build-pkg/) and Windows (build-win/) with the settings scripts/package.sh
-# and scripts/package_win.sh use, and compares compiled mode with --lle on
-# both (Windows under Wine): attract mode at frames 600 and 3000, and the
+# (build-linux/, in the Ubuntu 22.04 container of scripts/linux_container.sh,
+# so the packages need no newer glibc than 2.35) and Windows (build-win/) with
+# the settings scripts/package.sh and scripts/package_win.sh use, and compares
+# compiled mode with --lle on both (Windows under Wine): attract mode at frames 600 and 3000, and the
 # 6987M speedrun tape at frame 6000. Any MISMATCH, WRAM difference or missing
 # hash stops it before anything is packed. Then the AppImage and the single
 # .exe (under Wine) are run for 600 frames, with no window, and must show the
@@ -24,13 +25,20 @@ while getopts "r:" opt; do
 done
 [ -f "$ROM" ] || { sed -n '2,16p' "$0"; echo "ROM not found: '$ROM'" >&2; exit 2; }
 JOBS=$(nproc 2>/dev/null || echo 4)
-GATE="$ROOT/build-pkg/release-gate"
+LINUX="$ROOT/build-linux"
+GATE="$LINUX/release-gate"
 DIST="$ROOT/dist"
 
 python3 "$ROOT/scripts/generate_snesrecomp.py" --rom "$ROM"
 
-cmake -S "$ROOT" -B "$ROOT/build-pkg" -G Ninja -DCMAKE_BUILD_TYPE=Release -DTLK_STATIC_SDL=ON
-cmake --build "$ROOT/build-pkg" --target tlk_headless tlk_sdl -j"$JOBS"
+"$ROOT/scripts/linux_container.sh" sh -c "cmake -S '$ROOT' -B '$LINUX' -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DTLK_STATIC_SDL=ON && cmake --build '$LINUX' --target tlk_headless tlk_sdl -j$JOBS"
+# Nothing newer than Ubuntu 22.04's glibc (2.35) and libstdc++ (GLIBCXX 3.4.30).
+for lib in GLIBC:2.35 GLIBCXX:3.4.30; do
+    newest=$(objdump -T "$LINUX/tlk_sdl" | grep -o "${lib%:*}_[0-9.]*" | cut -d_ -f2 | sort -uV | tail -1)
+    [ "$(printf '%s\n' "$newest" "${lib#*:}" | sort -V | tail -1)" = "${lib#*:}" ] ||
+        { echo "tlk_sdl needs ${lib%:*} $newest, newer than ${lib#*:}" >&2; exit 1; }
+done
 cmake -S "$ROOT" -B "$ROOT/build-win" -G Ninja -DCMAKE_BUILD_TYPE=Release -DTLK_STATIC_SDL=ON \
       -DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/mingw-w64-x86_64.cmake"
 cmake --build "$ROOT/build-win" --target tlk_headless tlk_sdl -j"$JOBS"
@@ -53,8 +61,8 @@ gate() { # name binary [compare_modes options] frame...
     [ "$want" -gt 0 ] && [ "$good" -eq "$want" ] || {
         echo "$name: compiled mode differs from --lle ($good of $want frames good)" >&2; exit 1; }
 }
-gate linux "$ROOT/build-pkg/tlk_headless" 600 3000
-gate linux-6987M "$ROOT/build-pkg/tlk_headless" -p "$ROOT/tapes/6987M.read.tape" 6000
+gate linux "$LINUX/tlk_headless" 600 3000
+gate linux-6987M "$LINUX/tlk_headless" -p "$ROOT/tapes/6987M.read.tape" 6000
 gate windows "$GATE/wine_headless" 600 3000
 gate windows-6987M "$GATE/wine_headless" -p "$ROOT/tapes/6987M.read.tape" 6000
 # And both builds must agree with each other.
@@ -65,8 +73,8 @@ for run in "" -6987M; do
         { echo "linux$run and windows$run hashes differ" >&2; exit 1; }
 done
 
-"$ROOT/scripts/package.sh" -b "$ROOT/build-pkg"
-"$ROOT/scripts/package_appimage.sh" -b "$ROOT/build-pkg"
+"$ROOT/scripts/linux_container.sh" "$ROOT/scripts/package.sh" -b "$LINUX"
+"$ROOT/scripts/linux_container.sh" "$ROOT/scripts/package_appimage.sh" -b "$LINUX"
 "$ROOT/scripts/package_win.sh" -b "$ROOT/build-win"
 
 # The packed players start and show the frame the checks saw at 600. No
