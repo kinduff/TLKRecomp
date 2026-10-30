@@ -73,7 +73,7 @@ Ready-to-run builds are on the [releases page](https://github.com/kinduff/TLKRec
 | System | File | How to start it |
 |---|---|---|
 | Windows x86_64 | `TLKRecomp-windows-x86_64.exe` | Put the ROM next to it and double-click it. |
-| Linux x86_64 | `TLKRecomp-linux-x86_64.AppImage` | `chmod +x` it and run it. Settings, saves and a ROM go next to it. |
+| Linux x86_64 | `TLKRecomp-x86_64.AppImage` | `chmod +x` it and run it. Settings, saves and a ROM go next to it. |
 | macOS, Apple Silicon | `TLKRecomp-macos-arm64.dmg` | Drag TLKRecomp.app to Applications. |
 
 The `.zip` and `.tar.gz` files hold the same program as a folder. If no ROM is next to the program, it asks for one
@@ -277,7 +277,7 @@ MinGW runtime are linked statically, so the `.exe` files need only system DLLs:
 (`docs/VERIFYING.md`); real Windows has not been tested yet.
 
 `scripts/package.sh` builds `dist/TLKRecomp-linux-x86_64.tar.gz` (binary, README and license notes; no ROM and no game
-data) and `scripts/package_appimage.sh` the same program as `TLKRecomp-linux-x86_64.AppImage` (settings, saves and a
+data) and `scripts/package_appimage.sh` the same program as `TLKRecomp-x86_64.AppImage` (settings, saves and a
 ROM go next to the .AppImage file). Run them through `scripts/linux_container.sh` (podman or docker) to build on
 Ubuntu 22.04 as releases do: a binary needs a glibc at least as new as the one it was built against, so a build from
 a current distribution won't start on older ones. `scripts/package_win.sh` builds `dist/TLKRecomp-windows-x86_64.zip` from

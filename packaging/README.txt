@@ -40,7 +40,7 @@ The single .exe (TLKRecomp-windows-x86_64.exe) is the same program
 without the folder: put the ROM next to it and double-click it. Its
 shader presets and font unpack to %APPDATA%\TLKRecomp on first start.
 
-Linux AppImage (TLKRecomp-linux-x86_64.AppImage): make it executable
+Linux AppImage (TLKRecomp-x86_64.AppImage): make it executable
 (chmod +x) and run it. tlk_sdl.ini, saves and recordings go next to
 the .AppImage file, and a ROM put there is found.
 

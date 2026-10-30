@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
-# Build the Linux AppImage: dist/TLKRecomp-linux-x86_64.AppImage
+# Build the Linux AppImage: dist/TLKRecomp-x86_64.AppImage (no "linux" in the
+# name: every AppImage is for Linux, and the AppImage catalog flags it).
 #
 # usage: scripts/package_appimage.sh [-b builddir]
 # Builds tlk_sdl in builddir (default build-pkg/, configured as
@@ -15,10 +16,10 @@ BUILD="$ROOT/build-pkg"
 while getopts "b:" opt; do
     case $opt in
         b) BUILD=$OPTARG ;;
-        *) sed -n '2,11p' "$0"; exit 2 ;;
+        *) sed -n '2,12p' "$0"; exit 2 ;;
     esac
 done
-NAME=TLKRecomp-linux-x86_64
+NAME=TLKRecomp-x86_64
 DIST="$ROOT/dist"
 APPDIR="$DIST/TLKRecomp.AppDir"
 TOOLS="$BUILD/appimage-tools"

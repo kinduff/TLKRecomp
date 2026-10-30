@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Build, check and pack the release packages into dist/:
-# TLKRecomp-linux-x86_64.tar.gz, TLKRecomp-linux-x86_64.AppImage,
+# TLKRecomp-linux-x86_64.tar.gz, TLKRecomp-x86_64.AppImage,
 # TLKRecomp-windows-x86_64.{zip,exe} and SHA256SUMS.
 #
 # usage: scripts/release.sh -r ROM
@@ -88,9 +88,9 @@ run_pkg() { # name command...
     echo "$name f600: ${got:-none} (want $want)"
     [ "$got" = "$want" ] || { echo "$name: wrong or no frame" >&2; exit 1; }
 }
-run_pkg AppImage "$DIST/TLKRecomp-linux-x86_64.AppImage"
+run_pkg AppImage "$DIST/TLKRecomp-x86_64.AppImage"
 run_pkg exe wine "$DIST/TLKRecomp-windows-x86_64.exe"
 
-(cd "$DIST" && sha256sum TLKRecomp-linux-x86_64.tar.gz TLKRecomp-linux-x86_64.AppImage \
+(cd "$DIST" && sha256sum TLKRecomp-linux-x86_64.tar.gz TLKRecomp-x86_64.AppImage \
     TLKRecomp-windows-x86_64.zip TLKRecomp-windows-x86_64.exe >SHA256SUMS)
 cat "$DIST/SHA256SUMS"

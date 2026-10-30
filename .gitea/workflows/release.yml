@@ -50,7 +50,7 @@ jobs:
           name: linux-windows
           path: |
             dist/TLKRecomp-linux-x86_64.tar.gz
-            dist/TLKRecomp-linux-x86_64.AppImage
+            dist/TLKRecomp-x86_64.AppImage
             dist/TLKRecomp-windows-x86_64.zip
             dist/TLKRecomp-windows-x86_64.exe
 
@@ -121,7 +121,7 @@ jobs:
             echo "| | Download | |"
             echo "|---|---|---|"
             echo "| Windows | \`TLKRecomp-windows-x86_64.exe\` | one file: put the ROM next to it and double-click |"
-            echo "| Linux | \`TLKRecomp-linux-x86_64.AppImage\` | \`chmod +x\`, run; settings and a ROM go next to it |"
+            echo "| Linux | \`TLKRecomp-x86_64.AppImage\` | \`chmod +x\`, run; settings and a ROM go next to it |"
             echo "| macOS (Apple Silicon) | \`TLKRecomp-macos-arm64.dmg\` | drag TLKRecomp.app to Applications; first start: System Settings > Privacy & Security > Open Anyway |"
             echo
             echo "The \`.zip\` / \`.tar.gz\` files hold the same program as a folder. Without a ROM next to it, the game asks for one and remembers it."
