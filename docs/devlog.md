@@ -2597,3 +2597,40 @@ no ROM, --frames 10                                      exit 2, no prompt
 
 Not run: drag and drop (xdotool cannot send XDND), a real desktop (Wayland, portal dialog), the Windows and macOS
 builds, and the hash gates (`sdl_main.c` is not in `tlk_headless`).
+
+## Task META: AppStream metainfo and update information in the AppImage
+
+The catalog's v0.3.4 run passed with two warnings: "No appdata file present" and "The AppImage contains no update
+information". Its page also showed "License: unknown".
+
+- `packaging/linux/io.github.kinduff.TLKRecomp.appdata.xml`: name, summary, description (from the README), license
+  `MIT AND LicenseRef-PolyForm-Noncommercial-1.0.0 AND Zlib AND OFL-1.1` (from `LICENSE-NOTES.txt`), homepage,
+  `tlk_sdl` binary, OARS `violence-cartoon` mild. No screenshots: ours show game graphics and catalogs copy them.
+  `scripts/package_appimage.sh` puts it in `usr/share/metainfo` and names the .desktop file after the id (also in
+  `usr/share/applications`, where `validate-tree` looks for the launchable).
+- The catalog's lint makes any `appstreamcli validate-tree` failure fatal, and older appstreamcli fails on warnings.
+  The first draft passed AppStream 1.2.1 but failed 0.15.2 (Ubuntu 22.04: `url-invalid-type vcs-browser`) and 0.11.4
+  (the catalog's own AppImage of it: `supports`, `developer`, the PolyForm SPDX id). It now uses only old tags
+  (`developer_name`, no `supports`/`vcs-browser`) and PolyForm as a LicenseRef. The runner turned out to have no
+  appstreamcli on PATH ("Skipping AppStream validation"), so this is for when it does.
+- Update information `gh-releases-zsync|kinduff|TLKRecomp|latest|TLKRecomp-x86_64.AppImage.zsync` (appimagetool
+  `-u`). appimagetool writes the .zsync into the current directory, so it now runs from `dist/` (and `-b` is made
+  absolute). The script stops if no .zsync was written. `release.yml` carries it to the publish job, which uploads
+  every `TLKRecomp-*` to Gitea and GitHub; `release.sh` lists it in SHA256SUMS.
+
+Evidence (2026-11-02, teresa; AppImage from the 22.04 container):
+
+```
+AppImage .upd_info / --appimage-updateinformation   gh-releases-zsync|kinduff|TLKRecomp|latest|TLKRecomp-x86_64.AppImage.zsync
+dist/TLKRecomp-x86_64.AppImage.zsync               59 KB, "Filename/URL: TLKRecomp-x86_64.AppImage" (relative)
+validate-tree on the extracted AppDir              AppStream 1.2.1: successful (2 infos); 0.15.2: successful
+                                                   (pedantic only); catalog's 0.11.4: "Validation was successful."
+desktop-file-validate                              rc 0
+catalog test.yml, private copy, this AppImage      green; no appdata or update-information warning;
+                                                   page: description "The Lion King (SNES) recompiled for PC",
+                                                   license as above; X-AppImage-UpdateInformation stored
+```
+
+Not tested: an update through AppImageUpdate (needs a release that carries the .zsync; check with
+`appimageupdatetool -j` on it once published). The .desktop id changed from `tlkrecomp` to
+`io.github.kinduff.TLKRecomp`: an AppImageLauncher-integrated older version keeps its own menu entry.
