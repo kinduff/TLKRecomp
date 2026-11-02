@@ -2552,3 +2552,48 @@ no ROM, --frames 10                          exit 2, no popup (scripted runs sti
 
 Not run: the hash gates (`sdl_main.c` is not in `tlk_headless`), the Windows and macOS builds, a real desktop, and
 the catalog test on a new release.
+
+## Task ROMWIN: the ROM prompt in the game window
+
+Task XDO's title fix (v0.3.3) got the catalog test past its first window check, then a private rerun of the catalog's
+`test.yml` on v0.3.3 failed at the next one: `worker.sh` counts windows with `xwininfo -tree -root | grep '": ("'`,
+which needs a WM_CLASS, and SDL's X11 message box sets none (xprop: `WM_CLASS: not found`; SDL has no setting for it).
+
+- With no ROM found, `tlk_sdl` now opens the game window first and asks there (`RomPrompt`, drawn by
+  `DrawRomPrompt` into the 256x224 picture through `Present()` on either presenter): the paw icon's sunset, sun
+  and paw (same shapes as `tools/make_icon.py`), "THE LION KING" in gold, and a brown panel with the stream
+  layout's gold double frame holding the message, a "Choose ROM..." bar and "Enter or click to choose, or drop it
+  on this window. Esc quits." in the overlay's 8x8 font. Original art only: there is no ROM yet, and the stream
+  layout's backdrop, logo and sprites are game frames that never ship.
+  Enter, a click or the pad's bottom/Start button opens the system file dialog (parented to the window); a dropped
+  file works too. A wrong file, or no file dialog at all (a sandbox: no portal, no zenity), shows a note in place
+  of the first two hints and keeps waiting. The window has WM_CLASS `tlk_sdl` and a STRING title (nothing here
+  calls `setlocale`).
+- SDL's message box and XDO's `LC_ALL=C` wrapper are gone. Scripted runs (--frames, tapes, self-test) still fail
+  with exit 2 and no prompt; a ROM given or found never shows it.
+- The catalog's screenshot is now this prompt instead of a 348x95 gray box. Its "mostly dark" warning (dark
+  >= 60% and mean < 35% on the shot) was measured with the test's own formula: a first, taller and darker panel
+  gave dark 60% / mean 33% once letterboxed as the test frames it; the panel now ends after the hints and the sky
+  stops before its dusk purple: 57% / 37%.
+
+Evidence (2026-11-02, teresa; build-linux from the 22.04 container):
+
+```
+catalog test.yml, private copy, this build's AppImage   window check FOUND; NUMBER_OF_WINDOWS: 1; window
+  (worker.sh swapped in the candidate file)              resized 768x672 -> 768x570; "SUCCESS :-)"; screenshot
+                                                         "15% one color, 18 words of text"; run green
+                                                         (warnings only: no appdata, no update information)
+catalog test.yml on v0.3.3                               NUMBER_OF_WINDOWS: 0, "Could not find a single window"
+ubuntu:22.04, LANG=C.UTF-8, Xvfb                         xdotool FOUND; 1 window with a class
+  Enter, no portal/zenity                                note "No file dialog here: drop the ROM file on this
+                                                         window"; still running
+  zenity: /etc/hostname, then the ROM                    wrong-file note; then the game starts (Westwood
+                                                         logo), "rom saved to tlk_sdl.ini", rom = <path>
+host Xvfb, OpenGL presenter and opengl = 0               same prompt picture on both
+tlk_sdl --frames 600 (dummy video)                       f600 57ccb8d5b24918fd
+--selftest-remap                                         PASS (0 failed)
+no ROM, --frames 10                                      exit 2, no prompt
+```
+
+Not run: drag and drop (xdotool cannot send XDND), a real desktop (Wayland, portal dialog), the Windows and macOS
+builds, and the hash gates (`sdl_main.c` is not in `tlk_headless`).
