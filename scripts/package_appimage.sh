@@ -10,6 +10,7 @@
 # releases, downloaded once into builddir/appimage-tools and checked by
 # SHA-256. AppRun puts tlk_sdl.ini, saves and recordings beside the
 # .AppImage file, and a ROM there is found. Never packs the ROM or game C.
+# The AppImage carries AppStream metainfo (packaging/linux).
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BUILD="$ROOT/build-pkg"
@@ -48,7 +49,10 @@ fi
 
 cp "$ROOT/packaging/icon/tlkrecomp.png" "$APPDIR/tlkrecomp.png"
 ln -s tlkrecomp.png "$APPDIR/.DirIcon"
-cat >"$APPDIR/tlkrecomp.desktop" <<'EOF'
+# The .desktop file is named after the AppStream id, which its metainfo
+# names as the launchable.
+APPID=io.github.kinduff.TLKRecomp
+cat >"$APPDIR/$APPID.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=TLKRecomp
@@ -58,6 +62,9 @@ Icon=tlkrecomp
 Categories=Game;
 Terminal=false
 EOF
+mkdir -p "$APPDIR/usr/share/applications" "$APPDIR/usr/share/metainfo"
+cp "$APPDIR/$APPID.desktop" "$APPDIR/usr/share/applications/"
+cp "$ROOT/packaging/linux/$APPID.appdata.xml" "$APPDIR/usr/share/metainfo/"
 cat >"$APPDIR/AppRun" <<'EOF'
 #!/bin/sh
 # Settings, saves and the ROM live beside the .AppImage, like the tarball's
