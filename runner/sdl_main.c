@@ -1915,6 +1915,28 @@ static void SDLCALL PickDone(void *ud, const char *const *files, int filter) {
     SDL_SetAtomicInt(&st->done, 1);
 }
 
+/* SDL's X11 message box sets the locale from the environment while it is
+ * open, so under a UTF-8 locale its title is written as a UTF8_STRING
+ * WM_NAME. xdotool 3.20160805 (Ubuntu 22.04), which the AppImage catalog test
+ * uses to find the first window, does not match names of that type, and the
+ * box counted as "no window" (runner LANG=C.UTF-8). The text is ASCII, so it
+ * is shown in the C locale, where the title is a plain STRING; SDL restores
+ * the locale when the box closes. */
+static bool ShowMessageBoxC(const SDL_MessageBoxData *box, int *button) {
+#if defined(_WIN32) || defined(__APPLE__)
+    return SDL_ShowMessageBox(box, button);
+#else
+    const char *old = SDL_getenv_unsafe("LC_ALL");
+    char *saved = old ? SDL_strdup(old) : NULL;
+    SDL_setenv_unsafe("LC_ALL", "C", 1);
+    bool ok = SDL_ShowMessageBox(box, button);
+    if (saved) SDL_setenv_unsafe("LC_ALL", saved, 1);
+    else SDL_unsetenv_unsafe("LC_ALL");
+    SDL_free(saved);
+    return ok;
+#endif
+}
+
 static uint8_t *PickRom(size_t *size, char *found, size_t found_n) {
     static const SDL_DialogFileFilter kFilters[] = {
         { "SNES ROM (*.sfc, *.smc)", "sfc;smc" }, { "All files", "*" } };
@@ -1928,7 +1950,7 @@ static uint8_t *PickRom(size_t *size, char *found, size_t found_n) {
         const SDL_MessageBoxData box = { SDL_MESSAGEBOX_INFORMATION, NULL, "The Lion King",
                                          msg, 2, pick, NULL };
         int button = 1;
-        if (SDL_ShowMessageBox(&box, &button) && button != 1) return NULL;
+        if (ShowMessageBoxC(&box, &button) && button != 1) return NULL;
         PickState st;
         SDL_SetAtomicInt(&st.done, 0);
         SDL_ShowOpenFileDialog(PickDone, &st, NULL, kFilters, 2, NULL, false);
