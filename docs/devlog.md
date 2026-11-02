@@ -2516,3 +2516,39 @@ tlk_sdl audio on / SDL_AUDIO_DRIVER=nonexistent   both run, same frame at 60; re
 Not run: the full gate list (only release.sh's subset and the remap self-test; the change outside packaging is the
 audio start in `sdl_main.c`), a real window on a desktop, and release.sh under the Gitea runner (podman as the runner's
 user was only run from a shell).
+
+## Task XDO: ROM popup invisible to the AppImage catalog test
+
+The catalog test (appimage.github.io PR 10863) failed v0.3.2 with "Could not find a single window on screen" and
+quoted the "No ROM given" text, which read as if `tlk_sdl` showed nothing. It did show the popup. A private copy of the
+catalog's `test.yml` with a dump at the moment it gives up (xwininfo, xprop, gdb) showed the box mapped and viewable,
+the root screenshot showing "Choose ROM..." / "Quit", and `tlk_sdl` idle in `X11Toolkit_DoWindowEventLoop` waiting for
+a click (frames symbolized against `build-linux/tlk_sdl`, same build ID as the release). The test finds windows with
+`xdotool search --onlyvisible --name .`, and xdotool 3.20160805 (Ubuntu 22.04) does not match a WM_NAME of type
+UTF8_STRING. SDL's X11 message box calls `setlocale(LC_ALL, "")` while it is open, so under the runner's
+`LANG=C.UTF-8` (or any UTF-8 desktop) its title gets that type. The task GLIBC check ("window The Lion King with the
+Choose ROM dialog") passed only because that container had no LANG.
+
+- `PickRom` shows the box through `ShowMessageBoxC`: on Linux/BSD it sets `LC_ALL=C` for the call and restores it, so
+  the title is a plain STRING. The text is ASCII. SDL restores the process locale when the box closes. Windows and
+  macOS call `SDL_ShowMessageBox` as before. When zenity is installed SDL uses it first (and always on Wayland); it
+  starts from SDL's own copy of the environment (`SDL_GetEnvironment()`), so it is unchanged.
+- Side effect: with host fonts and a UTF-8 locale the old box drew a blank band between its two lines (font set);
+  in the C locale it does not.
+
+Evidence (2026-11-02, teresa; build-linux from the 22.04 container):
+
+```
+catalog test.yml on a private copy, v0.3.2   window 0x600003 "The Lion King" IsViewable, WM_NAME(UTF-8);
+                                             xdotool --name . finds nothing; bt: main > SDL_ShowMessageBox >
+                                             X11_ShowMessageBox > X11Toolkit_DoWindowEventLoop > XPeekEvent
+ubuntu:22.04, Xvfb, LANG=C.UTF-8, xdotool    v0.3.2 tlk_sdl: WM_NAME(UTF-8)  NOT FOUND
+                                             this change:    WM_NAME(STRING) FOUND
+xdotool with LANG=C.UTF-8 / unset / LC_ALL=C all NOT FOUND on the UTF-8 title (its own locale does not matter)
+tlk_sdl --frames 600 (dummy video)           f600 57ccb8d5b24918fd (release.sh's package check)
+--selftest-remap                             PASS (0 failed)
+no ROM, --frames 10                          exit 2, no popup (scripted runs still fail without asking)
+```
+
+Not run: the hash gates (`sdl_main.c` is not in `tlk_headless`), the Windows and macOS builds, a real desktop, and
+the catalog test on a new release.
