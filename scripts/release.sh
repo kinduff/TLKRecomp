@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Build, check and pack the release packages into dist/:
-# TLKRecomp-linux-x86_64.tar.gz, TLKRecomp-x86_64.AppImage,
-# TLKRecomp-windows-x86_64.{zip,exe} and SHA256SUMS.
+# TLKRecomp-linux-x86_64.tar.gz, TLKRecomp-x86_64.AppImage (and its .zsync
+# for AppImageUpdate), TLKRecomp-windows-x86_64.{zip,exe} and SHA256SUMS.
 #
 # usage: scripts/release.sh -r ROM
 # Generates the C from ROM, builds tlk_headless and tlk_sdl for Linux
@@ -91,6 +91,6 @@ run_pkg() { # name command...
 run_pkg AppImage "$DIST/TLKRecomp-x86_64.AppImage"
 run_pkg exe wine "$DIST/TLKRecomp-windows-x86_64.exe"
 
-(cd "$DIST" && sha256sum TLKRecomp-linux-x86_64.tar.gz TLKRecomp-x86_64.AppImage \
+(cd "$DIST" && sha256sum TLKRecomp-linux-x86_64.tar.gz TLKRecomp-x86_64.AppImage TLKRecomp-x86_64.AppImage.zsync \
     TLKRecomp-windows-x86_64.zip TLKRecomp-windows-x86_64.exe >SHA256SUMS)
 cat "$DIST/SHA256SUMS"

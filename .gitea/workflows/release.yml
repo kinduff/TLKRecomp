@@ -51,6 +51,7 @@ jobs:
           path: |
             dist/TLKRecomp-linux-x86_64.tar.gz
             dist/TLKRecomp-x86_64.AppImage
+            dist/TLKRecomp-x86_64.AppImage.zsync
             dist/TLKRecomp-windows-x86_64.zip
             dist/TLKRecomp-windows-x86_64.exe
 

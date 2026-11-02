@@ -10,7 +10,10 @@
 # releases, downloaded once into builddir/appimage-tools and checked by
 # SHA-256. AppRun puts tlk_sdl.ini, saves and recordings beside the
 # .AppImage file, and a ROM there is found. Never packs the ROM or game C.
-# The AppImage carries AppStream metainfo (packaging/linux).
+# The AppImage carries AppStream metainfo (packaging/linux) and update
+# information for AppImageUpdate: the latest GitHub release's
+# TLKRecomp-x86_64.AppImage.zsync, written next to the AppImage here and
+# published with it by .gitea/workflows/release.yml.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 BUILD="$ROOT/build-pkg"
@@ -20,6 +23,7 @@ while getopts "b:" opt; do
         *) sed -n '2,12p' "$0"; exit 2 ;;
     esac
 done
+case $BUILD in /*) ;; *) BUILD="$PWD/$BUILD" ;; esac   # appimagetool runs from dist/
 NAME=TLKRecomp-x86_64
 DIST="$ROOT/dist"
 APPDIR="$DIST/TLKRecomp.AppDir"
@@ -83,7 +87,11 @@ if find "$APPDIR" -iname '*.sfc' -o -iname '*.smc' -o -name '*.c' -o -name '*.h'
 fi
 
 # Extract-and-run: no FUSE needed on the build machine.
-APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$TOOLS/appimagetool-x86_64.AppImage" --no-appstream \
-    --runtime-file "$TOOLS/runtime-x86_64" "$APPDIR" "$DIST/$NAME.AppImage"
+# Run in dist/: appimagetool writes the .zsync into the current directory.
+rm -f "$DIST/$NAME.AppImage.zsync"
+(cd "$DIST" && APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$TOOLS/appimagetool-x86_64.AppImage" --no-appstream \
+    -u "gh-releases-zsync|kinduff|TLKRecomp|latest|$NAME.AppImage.zsync" \
+    --runtime-file "$TOOLS/runtime-x86_64" "$APPDIR" "$NAME.AppImage")
+[ -s "$DIST/$NAME.AppImage.zsync" ] || { echo "appimagetool wrote no $NAME.AppImage.zsync" >&2; exit 1; }
 rm -rf "$APPDIR"
 echo "$DIST/$NAME.AppImage"
