@@ -547,6 +547,117 @@ static void DrawToast(void) {
     DrawText(8, y + 4, s_toast);
 }
 
+/* ── No ROM: the prompt in the game window ─────────────────────────────── */
+static int s_rom_prompt;            /* Present() shows the ROM prompt instead of the game */
+static const char *s_rom_note[2];   /* up to two lines under it (wrong file, no dialog) */
+
+static void DrawTextScaled(int x, int y, const char *t, int s) {
+    for (; *t; t++, x += 8 * s) {
+        int c = (unsigned char)*t;
+        if (c < 32 || c > 126) c = '?';
+        for (int r = 0; r < 8 * s; r++)
+            for (int b = 0; b < 8 * s; b++)
+                if ((kTlkFont8x8[c - 32][r / s] & (1u << (b / s))) && x + b >= 0 && x + b < kWidth &&
+                    y + r >= 0 && y + r < kHeight)
+                    s_screen[(y + r) * kWidth + x + b] = s_ink;
+    }
+}
+
+static void DrawCentered(int y, const char *t, int s) {
+    DrawTextScaled((kWidth - (int)strlen(t) * 8 * s) / 2, y, t, s);
+}
+
+/* Original art only, no game graphics (there is no ROM yet): the app icon's
+ * sunset, sun and paw (tools/make_icon.py, same shapes in its 1024 units) and
+ * the gold-framed brown panel of the stream layout. */
+static uint32_t Mix(uint32_t a, uint32_t b, float t) {   /* t = 0: a, 1: b */
+    uint32_t o = 0;
+    for (int sh = 0; sh <= 16; sh += 8) {
+        float ca = (float)(a >> sh & 255), cb = (float)(b >> sh & 255);
+        o |= (uint32_t)(ca + (cb - ca) * t + 0.5f) << sh;
+    }
+    return o;
+}
+
+static uint32_t SkyColor(float t) {   /* gold sky, orange, red, dusk purple */
+    static const float kAt[4] = { 0.0f, 0.45f, 0.75f, 1.0f };
+    static const uint32_t kSky[4] = { 0xFFCF5C, 0xF2762E, 0xB8323A, 0x502462 };
+    for (int i = 0; i < 3; i++)
+        if (t <= kAt[i + 1]) return Mix(kSky[i], kSky[i + 1], (t - kAt[i]) / (kAt[i + 1] - kAt[i]));
+    return kSky[3];
+}
+
+static void DrawRomBackground(uint32_t *px) {
+    static const float kPaw[8][4] = {   /* cx, cy, rx, ry: main pad lobes, then toes */
+        { 512, 640, 150, 118 }, { 398, 735, 122, 112 }, { 626, 735, 122, 112 }, { 512, 770, 120, 92 },
+        { 262, 455, 74, 96 },   { 414, 345, 82, 108 },  { 610, 345, 82, 108 },  { 762, 455, 74, 96 } };
+    const uint32_t kSun = 0xFFECAA, kPawInk = 0x241416, kGold = 0xF2C14E, kGoldD = 0x8A5416, kBrown = 0x221208;
+    const float s = 44.0f / 632.0f, ox = 128.0f - 512.0f * s, oy = 2.0f - 230.0f * s;   /* emblem 44 px tall */
+    for (int y = 0; y < kHeight; y++)
+        for (int x = 0; x < kWidth; x++) {
+            uint32_t c = SkyColor(0.8f * y / (kHeight - 1));   /* stops before the dusk purple */
+            float ux = (x + 0.5f - ox) / s, uy = (y + 0.5f - oy) / s;   /* this pixel in icon units */
+            float d2 = ((ux - 512) * (ux - 512) + (uy - 450) * (uy - 450)) / (300.0f * 300.0f);
+            c = Mix(c, kSun, 0.45f * expf(-1.6f * d2));                  /* glow */
+            int sun = 0, paw = 0;
+            for (int sy = 0; sy < 4; sy++)
+                for (int sx = 0; sx < 4; sx++) {
+                    float qx = (x + (sx + 0.5f) / 4 - ox) / s, qy = (y + (sy + 0.5f) / 4 - oy) / s;
+                    sun += (qx - 512) * (qx - 512) + (qy - 450) * (qy - 450) <= 220.0f * 220.0f;
+                    for (int e = 0; e < 8; e++) {
+                        float ex = (qx - kPaw[e][0]) / kPaw[e][2], ey = (qy - kPaw[e][1]) / kPaw[e][3];
+                        if (ex * ex + ey * ey <= 1.0f) { paw++; break; }
+                    }
+                }
+            c = Mix(c, kSun, sun / 16.0f);
+            c = Mix(c, kPawInk, paw / 16.0f);
+            px[y * kWidth + x] = c;
+        }
+    /* Panel: brown at 200/255 over the sky, gold line 2 px out, dark gold 4 px out. */
+    const int x0 = 16, x1 = 239, y0 = 74, y1 = 195;
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) px[y * kWidth + x] = Mix(px[y * kWidth + x], kBrown, 200.0f / 255.0f);
+    for (int k = 0; k < 2; k++) {
+        const int g = k ? 4 : 2;
+        const uint32_t c = k ? kGoldD : kGold;
+        for (int x = x0 - g; x <= x1 + g; x++) px[(y0 - g) * kWidth + x] = px[(y1 + g) * kWidth + x] = c;
+        for (int y = y0 - g; y <= y1 + g; y++) px[y * kWidth + x0 - g] = px[y * kWidth + x1 + g] = c;
+    }
+    /* "Choose ROM..." bar: gold with a dark gold edge. */
+    for (int y = 130; y < 148; y++)
+        for (int x = 64; x < 192; x++)
+            px[y * kWidth + x] = (y == 130 || y == 147 || x == 64 || x == 191) ? kGoldD : kGold;
+}
+
+static void DrawRomPrompt(void) {
+    static uint32_t bg[kWidth * kHeight];
+    static int bg_ready;
+    if (!bg_ready) { DrawRomBackground(bg); bg_ready = 1; }
+    memcpy(s_screen, bg, sizeof bg);
+    Ink(0x22, 0x12, 0x08);
+    DrawTextScaled(25, 51, "THE LION KING", 2);   /* shadow */
+    Ink(0xF2, 0xC1, 0x4E);
+    DrawTextScaled(24, 50, "THE LION KING", 2);
+    Ink(0xFF, 0xEC, 0xAA);
+    DrawCentered(82, "Game data not included.", 1);
+    DrawCentered(94, "Choose your own copy of", 1);
+    DrawCentered(106, "The Lion King (USA) ROM", 1);
+    DrawCentered(118, "(.sfc or .smc).", 1);
+    Ink(0x22, 0x12, 0x08);
+    DrawCentered(135, "Choose ROM...", 1);
+    if (s_rom_note[0]) {   /* a note takes the place of the two hint lines */
+        Ink(0xFF, 0x8C, 0x64);
+        for (int i = 0; i < 2; i++)
+            if (s_rom_note[i]) DrawCentered(156 + 12 * i, s_rom_note[i], 1);
+    } else {
+        Ink(0xFF, 0xEC, 0xAA);
+        DrawCentered(156, "Enter or click to choose,", 1);
+        DrawCentered(168, "or drop it on this window.", 1);
+    }
+    Ink(0xFF, 0xEC, 0xAA);
+    DrawCentered(180, "Esc quits.", 1);
+}
+
 /* ── Practice mode ──────────────────────────────────────────────────────── */
 /* Reads WRAM only, never writes it, so emulation and recordings are the same
  * with it on or off. Timing follows SBDWolf's practice hack (timer.asm): the
@@ -998,19 +1109,22 @@ static void ComposeWide(uint8_t *dst, int pitch, int w) {
 
 /* Shows s_pixels plus the overlay (menu when open, toast, turbo tag). */
 static void Present(void) {
-    memcpy(s_screen, s_pixels, sizeof s_screen);
-    if (s_practice && !s_menu_open) DrawPractice();
-    DrawToast();
-    if (TurboHeld() && !s_menu_open) {
-        char t[8];
-        snprintf(t, sizeof t, ">>%dx", s_turbo_speed);
-        Panel(kWidth - 48, 4, 44, 16);
-        Ink(255, 255, 255);
-        DrawText(kWidth - 44, 8, t);
+    if (s_rom_prompt) DrawRomPrompt();   /* before the game starts: no PPU picture, WRAM or overlays yet */
+    else {
+        memcpy(s_screen, s_pixels, sizeof s_screen);
+        if (s_practice && !s_menu_open) DrawPractice();
+        DrawToast();
+        if (TurboHeld() && !s_menu_open) {
+            char t[8];
+            snprintf(t, sizeof t, ">>%dx", s_turbo_speed);
+            Panel(kWidth - 48, 4, 44, 16);
+            Ink(255, 255, 255);
+            DrawText(kWidth - 44, 8, t);
+        }
+        /* Without ImGui the same menu is drawn into the 256x224 picture. */
+        if (s_menu_open && !s_menu_gl) recomp_runtime_ui_render_argb8888(s_ui, s_screen, kWidth, kHeight, kWidth * 4);
     }
-    /* Without ImGui the same menu is drawn into the 256x224 picture. */
-    if (s_menu_open && !s_menu_gl) recomp_runtime_ui_render_argb8888(s_ui, s_screen, kWidth, kHeight, kWidth * 4);
-    const int sc = s_hd ? s_hd_mode7 : 1, ww = WideWidth();
+    const int sc = s_hd && !s_rom_prompt ? s_hd_mode7 : 1, ww = s_rom_prompt ? 0 : WideWidth();
     const int tw = ww ? ww : kWidth * sc, th = ww ? kHeight : kHeight * sc;
     if (s_gl_on) {
         uint8 *px;
@@ -1900,75 +2014,91 @@ static uint8_t *FindRom(size_t *size, char *found, size_t found_n) {
     return NULL;
 }
 
-/* No ROM found: ask with the system file dialog (portal/zenity on Linux,
- * native on Windows and macOS), verify it, and remember it as rom= in the
- * ini. A wrong file offers another try. Returns NULL on cancel or when no
- * dialog is available (headless, no portal). */
-typedef struct { SDL_AtomicInt done; char path[2048]; } PickState;
+/* No ROM found: ask for one in the game window (DrawRomPrompt), verify it, and
+ * remember it as rom= in the ini. Enter, a click or the pad's bottom button
+ * opens the system file dialog (portal/zenity on Linux, native on Windows and
+ * macOS); a file dropped on the window works too, which is the way in where no
+ * dialog can open (a sandbox). A wrong file says so and waits for another.
+ * Returns NULL when the player quits.
+ * It is the game window and not a system message box because SDL's X11 box
+ * has no WM_CLASS and, under a UTF-8 locale, a UTF8_STRING WM_NAME: the
+ * AppImage catalog test (xdotool 3.20160805 and xwininfo on Ubuntu 22.04)
+ * counted it as no window at all. */
+typedef struct { SDL_AtomicInt done; int failed; char path[2048]; } PickState;
 
 static void SDLCALL PickDone(void *ud, const char *const *files, int filter) {
     PickState *st = ud;
     (void)filter;
     st->path[0] = 0;
+    st->failed = !files;
     if (!files) fprintf(stderr, "file dialog: %s\n", SDL_GetError());
     else if (files[0]) snprintf(st->path, sizeof st->path, "%s", files[0]);
     SDL_SetAtomicInt(&st->done, 1);
 }
 
-/* SDL's X11 message box sets the locale from the environment while it is
- * open, so under a UTF-8 locale its title is written as a UTF8_STRING
- * WM_NAME. xdotool 3.20160805 (Ubuntu 22.04), which the AppImage catalog test
- * uses to find the first window, does not match names of that type, and the
- * box counted as "no window" (runner LANG=C.UTF-8). The text is ASCII, so it
- * is shown in the C locale, where the title is a plain STRING; SDL restores
- * the locale when the box closes. */
-static bool ShowMessageBoxC(const SDL_MessageBoxData *box, int *button) {
-#if defined(_WIN32) || defined(__APPLE__)
-    return SDL_ShowMessageBox(box, button);
-#else
-    const char *old = SDL_getenv_unsafe("LC_ALL");
-    char *saved = old ? SDL_strdup(old) : NULL;
-    SDL_setenv_unsafe("LC_ALL", "C", 1);
-    bool ok = SDL_ShowMessageBox(box, button);
-    if (saved) SDL_setenv_unsafe("LC_ALL", saved, 1);
-    else SDL_unsetenv_unsafe("LC_ALL");
-    SDL_free(saved);
-    return ok;
-#endif
-}
-
-static uint8_t *PickRom(size_t *size, char *found, size_t found_n) {
+static uint8_t *RomPrompt(size_t *size, char *found, size_t found_n) {
     static const SDL_DialogFileFilter kFilters[] = {
         { "SNES ROM (*.sfc, *.smc)", "sfc;smc" }, { "All files", "*" } };
-    const char *msg =
-        "The game data is not included. Choose your own copy of\n"
-        "The Lion King (USA) ROM (.sfc or .smc).";
-    for (;;) {
-        const SDL_MessageBoxButtonData pick[] = {
-            { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Choose ROM..." },
-            { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Quit" } };
-        const SDL_MessageBoxData box = { SDL_MESSAGEBOX_INFORMATION, NULL, "The Lion King",
-                                         msg, 2, pick, NULL };
-        int button = 1;
-        if (ShowMessageBoxC(&box, &button) && button != 1) return NULL;
-        PickState st;
-        SDL_SetAtomicInt(&st.done, 0);
-        SDL_ShowOpenFileDialog(PickDone, &st, NULL, kFilters, 2, NULL, false);
-        while (!SDL_GetAtomicInt(&st.done)) {
-            SDL_PumpEvents();
-            SDL_Delay(10);
+    static PickState st;   /* static: a dialog still open when the player quits answers into it later */
+    int asking = 0;
+    char path[2048] = "";
+    uint8_t *rom = NULL;
+    s_rom_prompt = 1;
+    while (!rom) {
+        int choose = 0, quit = 0;
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            switch (ev.type) {
+            case SDL_EVENT_QUIT:
+            case SDL_EVENT_WINDOW_CLOSE_REQUESTED: quit = 1; break;
+            case SDL_EVENT_KEY_DOWN:
+                if (ev.key.repeat) break;
+                if (ev.key.key == SDLK_ESCAPE) quit = 1;
+                else if (ev.key.key == SDLK_RETURN || ev.key.key == SDLK_KP_ENTER || ev.key.key == SDLK_SPACE) choose = 1;
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if (ev.button.button == SDL_BUTTON_LEFT) choose = 1;
+                break;
+            case SDL_EVENT_GAMEPAD_ADDED: OpenFirstGamepad(); break;
+            case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+                if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH || ev.gbutton.button == SDL_GAMEPAD_BUTTON_START) choose = 1;
+                break;
+            case SDL_EVENT_DROP_FILE:
+                if (ev.drop.data) snprintf(path, sizeof path, "%s", ev.drop.data);
+                break;
+            default: break;
+            }
         }
-        if (!st.path[0]) return NULL;
-        char err[256];
-        uint8_t *rom = TlkReadVerifiedRom(st.path, size, err, sizeof err);
-        if (rom) {
-            snprintf(found, found_n, "%s", st.path);
-            return rom;
+        if (quit) break;
+        if (choose && !asking) {
+            SDL_SetAtomicInt(&st.done, 0);
+            asking = 1;
+            SDL_ShowOpenFileDialog(PickDone, &st, win, kFilters, 2, NULL, false);
         }
-        fprintf(stderr, "%s: %s\n", err, st.path);
-        msg = "That file is not The Lion King (USA) ROM (CRC32 C8FBFAA8).\n"
-              "Other regions, revisions and hacks are not supported.";
+        if (asking && SDL_GetAtomicInt(&st.done)) {
+            asking = 0;
+            if (st.path[0]) snprintf(path, sizeof path, "%s", st.path);
+            else if (st.failed) {
+                s_rom_note[0] = "No file dialog here. Drop";
+                s_rom_note[1] = "the ROM on this window.";
+            }
+        }
+        if (path[0]) {
+            char err[256];
+            rom = TlkReadVerifiedRom(path, size, err, sizeof err);
+            if (rom) snprintf(found, found_n, "%s", path);
+            else {
+                fprintf(stderr, "%s: %s\n", err, path);
+                s_rom_note[0] = "Not The Lion King (USA)";
+                s_rom_note[1] = "ROM. Try another file.";
+            }
+            path[0] = 0;
+        }
+        Present();
+        SDL_Delay(15);
     }
+    s_rom_prompt = 0;
+    return rom;
 }
 
 /* What is shown: with OpenGL the whole window as composited (shader and menu
@@ -2104,7 +2234,8 @@ int main(int argc, char **argv) {
     if (!rom) {
         rom = FindRom(&rom_size, found, sizeof found);
         if (!rom && interactive) {
-            rom = PickRom(&rom_size, found, sizeof found);
+            if (!OpenVideo()) return 3;
+            rom = RomPrompt(&rom_size, found, sizeof found);
             if (rom) {
                 snprintf(s_rom_cfg, sizeof s_rom_cfg, "%s", found);
                 if (SaveConfig()) fprintf(stderr, "rom saved to %s\n", s_cfg_path);
@@ -2117,7 +2248,7 @@ int main(int argc, char **argv) {
         if (!LoadTape(input_path)) { fprintf(stderr, "cannot load tape %s\n", input_path); return 2; }
         fprintf(stderr, "input: %zu %s from %s\n", s_tape_frames, s_polled ? "polls" : "frames", input_path);
     }
-    if (!OpenVideo()) return 3;
+    if (!win && !OpenVideo()) return 3;   /* already open when the ROM was asked for */
     MenuCreate();
 
     astream = NULL;
